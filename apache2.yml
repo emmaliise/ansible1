@@ -1,0 +1,63 @@
+---
+# Lab 2: Apache2 ja userdir mooduli automatiseerimine
+- name: Apache2 veebiserveri ja userdir mooduli seadistamine
+  hosts: debian
+  become: yes
+  tasks:
+    # 1. Paigaldame Apache2 veebiserveri
+    - name: Paigalda Apache2
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+
+    # 2. Loome kasutaja kodukataloogi public_html kausta
+    - name: Loome public_html kataloog user_ile
+      file:
+        path: /home/user/public_html
+        state: directory
+        owner: user
+        group: user
+        mode: '0755'
+
+    # 3. Lubame Apache userdir mooduli
+    - name: Lubame userdir mod
+      apache2_module:
+        name: userdir
+        state: present
+
+    # 4. Taaskäivitame Apache2 teenuse
+    - name: Apache2 serverile alglaadimine(restart)
+      service:
+        name: apache2
+        state: restarted
+
+    # 5. Kopeerime vaike index.html kasutaja public_html kausta
+    - name: Kopeerime index.html fail USER_ile kodus_public_html kataloogi
+      copy:
+        content: "<html><body><h1>Apache2 Default Page</h1></body></html>\n"
+        dest: /home/user/public_html/index.html
+        owner: user
+        group: user
+        mode: '0644'
+
+    # 6. Redigeerime kasutaja lehekülje teksti
+    - name: user index.html redigeerimine
+      lineinfile:
+        path: /home/user/public_html/index.html
+        regexp: 'Apache2 Default Page'
+        line: '<h1>USERi lehekylg</h1>'
+
+    # Iseseisev ülesanne: Unikaalne /var/www/html/index.html serveri andmetega
+    - name: Asenda Apache2 vaikeleht unikaalse sisuga
+      copy:
+        content: |
+          <html>
+          <body>
+            <h1>Tere tulemast!</h1>
+            <p>Serveri hostinimi: {{ ansible_hostname }}</p>
+            <p>Serveri IP-aadress: {{ ansible_default_ipv4.address }}</p>
+          </body>
+          </html>
+        dest: /var/www/html/index.html
+        mode: '0644'

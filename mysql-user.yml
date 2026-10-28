@@ -1,0 +1,20 @@
+---
+# Lab 4: MySQL root kasutaja seadistamine
+- name: Seadista MySQL root kasutaja ja .my.cnf
+  hosts: debian
+  become: yes
+  tasks:
+    - name: Maara root parooliks qwerty
+      shell: >
+        mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'qwerty'; FLUSH PRIVILEGES;"
+
+    - name: Loo /root/.my.cnf fail
+      copy:
+        content: |
+          [client]
+          user=root
+          password=qwerty
+        dest: /root/.my.cnf
+        owner: root
+        group: root
+        mode: '0600'

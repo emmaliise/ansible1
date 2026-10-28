@@ -1,0 +1,41 @@
+---
+# Lab 4: MySQL serveri paigaldamine ja repositooriumi seadistamine
+- name: Paigalda MySQL Server ametlikust repositooriumist
+  hosts: debian
+  become: yes
+  tasks:
+    # 1. Loome allalaadimiste kataloogi
+    - name: Loome allalaaditud kataloog
+      file:
+        path: /root/allalaadimised
+        state: directory
+        mode: '0755'
+
+    # 2. Laadime alla MySQL APT konfigureerimise paketi
+    - name: Laadime MySQL APT paketi wget abil
+      shell: wget -O /root/allalaadimised/mysql-apt-config_0.8.36-1_all.deb https://dev.mysql.com/get/mysql-apt-config_0.8.36-1_all.deb
+
+    # 3. Paigaldame gnupg ja python3-pymysql (vajalik võtmete ja Ansible MySQL mooduli jaoks)
+    - name: Paigalda gnupg ja python3-pymysql
+      apt:
+        name:
+          - gnupg
+          - python3-pymysql
+        state: present
+        update_cache: yes
+
+    # 4. Installeerime allalaaditud repositooriumi paketi
+    - name: Installeerime mysql repositoorium
+      apt:
+        deb: /root/allalaadimised/mysql-apt-config_0.8.36-1_all.deb
+
+    # 5. Uuendame APT paketinimekirja
+    - name: Teeme apt-le update
+      apt:
+        update_cache: yes
+
+    # 6. Paigaldame MySQL serveri
+    - name: Paigaldame mysql-server
+      apt:
+        name: mysql-server
+        state: present

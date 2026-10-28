@@ -1,0 +1,17 @@
+---
+# Lab 3 Iseseisev ülesanne 2: PHP eemaldamise playbook
+# # apt-get purge php7.*
+# # apt-get purge php7.X-common
+# # apt remove php7.X*
+
+- name: Eemalda PHP ja sellega seotud paketid
+  hosts: debian
+  become: yes
+  tasks:
+    - name: Eemalda PHP paketid
+      apt:
+        name:
+          - php
+          - php-common
+        state: absent
+        purge: yes

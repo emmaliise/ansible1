@@ -1,0 +1,32 @@
+---
+# Lab 3: PHP paigaldamine ja testlehe seadistamine
+- name: Paigalda PHP ja loome testfaili
+  hosts: debian
+  become: yes
+  tasks:
+    # 1. Paigaldame viimase PHP versiooni
+    - name: install php
+      apt:
+        name: php
+        state: latest
+        update_cache: yes
+
+    # 2. Iseseisev ülesanne 1: Loome phpinfo.php faili /var/www/html/ kataloogi
+    - name: Loome phpinfo.php faili
+      copy:
+        content: |
+          <?php
+          phpinfo();
+          ?>
+        dest: /var/www/html/phpinfo.php
+        mode: '0644'
+
+    # 3. Loome ka info.php (tagamaks ühilduvust mõlema juhendis mainitud nimega)
+    - name: Loome info.php faili
+      copy:
+        content: |
+          <?php
+          phpinfo();
+          ?>
+        dest: /var/www/html/info.php
+        mode: '0644'
