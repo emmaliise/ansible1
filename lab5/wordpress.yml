@@ -1,0 +1,124 @@
+---
+# Lab 5: WordPressi paigaldamine ja seadistamine klientserveritesse Ansible'iga
+# Kaivitamine: ansible-playbook /root/playbooks/wordpress.yml
+- name: WordPressi paigaldamine ja seadistamine
+  hosts: debian          # grupp failist /etc/ansible/hosts (klientserverid)
+  become: yes            # koik ulesanded kaivitatakse root-oigustes
+
+  tasks:
+    # Python moodul, mida vajavad mysql_db ja mysql_user moodulid
+    - name: Paigaldame python3-pymysql
+      apt:
+        name: python3-pymysql
+        state: present
+        update_cache: yes
+
+    # Iseseisev ulesanne 1: PHP MySQL laiendus (mysqli).
+    # Debian 13 peal on PHP 8.4, seega php7.4-mysql asemel on pakett php-mysql
+    - name: Paigaldame PHP MySQL mooduli (php-mysql)
+      apt:
+        name: php-mysql
+        state: present
+
+    # Andmebaas WordPressi jaoks. MySQL root parool loetakse failist /root/.my.cnf
+    - name: Loome andmebaas nimega-wpdatabase
+      mysql_db:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        name: wpdatabase
+        state: present
+
+    # Eraldi kasutaja, kellel on oigused ainult wpdatabase andmebaasile
+    - name: Loome kasutaja nimega-wpuser parool-qwerty
+      mysql_user:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        name: wpuser
+        plugin: caching_sha2_password
+        plugin_auth_string: qwerty
+        priv: "wpdatabase.*:ALL,GRANT"
+        state: present
+
+    # Laeme ametlikult kodulehelt alla WordPressi arhiivi
+    - name: Laeme alla WordPressi
+      get_url:
+        url: https://wordpress.org/latest.tar.gz
+        dest: /tmp/latest.tar.gz
+
+    # Pakime arhiivi lahti, tekib kaust /var/www/html/wordpress
+    - name: Pakime WordPressi lahti
+      unarchive:
+        src: /tmp/latest.tar.gz
+        dest: /var/www/html/
+        remote_src: yes          # arhiiv asub juba klientserveris
+        owner: www-data
+        group: www-data
+        creates: /var/www/html/wordpress/index.php
+
+    # Teeme naidisfailist paris konfiguratsioonifaili
+    - name: Kopeerime wp-config-sample.php failiks wp-config.php
+      copy:
+        src: /var/www/html/wordpress/wp-config-sample.php
+        dest: /var/www/html/wordpress/wp-config.php
+        remote_src: yes
+        force: no                # olemasolevat faili ule ei kirjutata
+        owner: www-data
+        group: www-data
+
+    # Asendame votmesonad meie andmebaasi andmetega (moodul lineinfile)
+    - name: Maarame andmebaasi nime (wpdatabase)
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: "database_name_here"
+        line: "define( 'DB_NAME', 'wpdatabase' );"
+
+    - name: Maarame andmebaasi kasutaja (wpuser)
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: "username_here"
+        line: "define( 'DB_USER', 'wpuser' );"
+
+    - name: Maarame andmebaasi parooli (qwerty)
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: "password_here"
+        line: "define( 'DB_PASSWORD', 'qwerty' );"
+
+    # Taaskaivitame Apache, et uus PHP moodul hakkaks toole
+    - name: Taaskaivitame Apache teenus
+      service:
+        name: apache2
+        state: restarted
+
+    # ---------- Iseseisev ulesanne 2: installatsiooni loppuleviimine ----------
+    # Laeme alla wp-cli tooriista ja teeme selle kaivitatavaks
+    - name: Laeme alla wp-cli
+      get_url:
+        url: https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        dest: /usr/local/bin/wp
+        mode: '0755'
+      tags: wpcli
+
+    # Kontrollime, kas WordPress on juba paigaldatud (rc=0 - jah, rc=1 - ei)
+    - name: Kontrollime, kas WordPress on juba paigaldatud
+      command: wp core is-installed --allow-root
+      args:
+        chdir: /var/www/html/wordpress
+      register: wp_installed
+      failed_when: false
+      changed_when: false
+      tags: wpcli
+
+    # Paigaldame WordPressi: pealkiri, admin kasutaja ja saidi aadress
+    - name: Paigaldame WordPressi (wp core install)
+      command: >-
+        wp core install
+        --url=http://{{ ansible_facts['default_ipv4']['address'] }}/wordpress
+        --title='admin wordpressi sait'
+        --admin_user=admin
+        --admin_password=qwerty
+        --admin_email=admin@example.com
+        --skip-email
+        --allow-root
+      args:
+        chdir: /var/www/html/wordpress
+      when: wp_installed.rc != 0
+      tags: wpcli
